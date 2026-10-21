@@ -1,3 +1,4 @@
+import random
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
@@ -11,7 +12,17 @@ class Chromosome(ABC):
     is_feasible: bool
 
     def __init__(self, length: int) -> None:
-        pass
+        if length <= 0:
+            raise ValueError("Chromosome length must be a positive integer.")
+        self.length = length
+        self.genes = []
+        self.fitness = None
+        self.is_feasible = True
+
+    def invalidate(self) -> None:
+        """Resets cached fitness and feasibility after genes are modified."""
+        self.fitness = None
+        self.is_feasible = True
 
     @abstractmethod
     def initialize_random(self) -> None:
@@ -23,18 +34,42 @@ class Chromosome(ABC):
         """Returns a deep copy of the chromosome."""
         pass
 
+    @abstractmethod
+    def validate(self) -> bool:
+        """Returns True if genes satisfy all representation and bound constraints."""
+        pass
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(genes={self.genes}, "
+            f"fitness={self.fitness}, is_feasible={self.is_feasible})"
+        )
+
 
 class BinaryChromosome(Chromosome):
     """Chromosome representation where genes are binary values (0 or 1)."""
 
     def __init__(self, length: int) -> None:
-        pass
+        super().__init__(length)
 
     def initialize_random(self) -> None:
-        pass
+        self.genes = [random.randint(0, 1) for _ in range(self.length)]
+        self.invalidate()
 
     def clone(self) -> "BinaryChromosome":
-        pass
+        copy_chrom = BinaryChromosome(self.length)
+        copy_chrom.genes = self.genes.copy()
+        copy_chrom.fitness = self.fitness
+        copy_chrom.is_feasible = self.is_feasible
+        return copy_chrom
+
+    def validate(self) -> bool:
+        if len(self.genes) != self.length:
+            return False
+        return all(
+            isinstance(g, int) and not isinstance(g, bool) and g in (0, 1)
+            for g in self.genes
+        )
 
 
 class IntegerChromosome(Chromosome):
@@ -51,13 +86,52 @@ class IntegerChromosome(Chromosome):
         upper_bound: int,
         is_permutation: bool = False,
     ) -> None:
-        pass
+        super().__init__(length)
+        if lower_bound > upper_bound:
+            raise ValueError("lower_bound cannot be greater than upper_bound.")
+        if is_permutation and (upper_bound - lower_bound + 1) != length:
+            raise ValueError(
+                "For a permutation chromosome, (upper_bound - lower_bound + 1) must equal length."
+            )
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+        self.is_permutation = is_permutation
 
     def initialize_random(self) -> None:
-        pass
+        if self.is_permutation:
+            self.genes = random.sample(
+                range(self.lower_bound, self.upper_bound + 1), self.length
+            )
+        else:
+            self.genes = [
+                random.randint(self.lower_bound, self.upper_bound)
+                for _ in range(self.length)
+            ]
+        self.invalidate()
 
     def clone(self) -> "IntegerChromosome":
-        pass
+        copy_chrom = IntegerChromosome(
+            self.length, self.lower_bound, self.upper_bound, self.is_permutation
+        )
+        copy_chrom.genes = self.genes.copy()
+        copy_chrom.fitness = self.fitness
+        copy_chrom.is_feasible = self.is_feasible
+        return copy_chrom
+
+    def validate(self) -> bool:
+        if len(self.genes) != self.length:
+            return False
+        in_bounds = all(
+            isinstance(g, int)
+            and not isinstance(g, bool)
+            and self.lower_bound <= g <= self.upper_bound
+            for g in self.genes
+        )
+        if not in_bounds:
+            return False
+        if self.is_permutation and len(set(self.genes)) != self.length:
+            return False
+        return True
 
 
 class FloatingPointChromosome(Chromosome):
@@ -72,10 +146,34 @@ class FloatingPointChromosome(Chromosome):
         lower_bound: float,
         upper_bound: float,
     ) -> None:
-        pass
+        super().__init__(length)
+        if lower_bound > upper_bound:
+            raise ValueError("lower_bound cannot be greater than upper_bound.")
+        self.lower_bound = float(lower_bound)
+        self.upper_bound = float(upper_bound)
 
     def initialize_random(self) -> None:
-        pass
+        self.genes = [
+            random.uniform(self.lower_bound, self.upper_bound)
+            for _ in range(self.length)
+        ]
+        self.invalidate()
 
     def clone(self) -> "FloatingPointChromosome":
-        pass
+        copy_chrom = FloatingPointChromosome(
+            self.length, self.lower_bound, self.upper_bound
+        )
+        copy_chrom.genes = self.genes.copy()
+        copy_chrom.fitness = self.fitness
+        copy_chrom.is_feasible = self.is_feasible
+        return copy_chrom
+
+    def validate(self) -> bool:
+        if len(self.genes) != self.length:
+            return False
+        return all(
+            isinstance(g, (int, float))
+            and not isinstance(g, bool)
+            and self.lower_bound <= float(g) <= self.upper_bound
+            for g in self.genes
+        )
