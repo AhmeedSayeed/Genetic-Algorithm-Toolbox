@@ -24,6 +24,18 @@ class Chromosome(ABC):
         self.fitness = None
         self.is_feasible = True
 
+    def is_better_than(self, other: "Chromosome", maximize: bool = True) -> bool:
+        """Compares two evaluated chromosomes using Deb's feasibility-first rule."""
+        if self.fitness is None or other.fitness is None:
+            raise ValueError("Both chromosomes must be evaluated before comparison.")
+        if self.is_feasible != other.is_feasible:
+            return self.is_feasible
+        return (
+            self.fitness > other.fitness
+            if maximize
+            else self.fitness < other.fitness
+        )
+
     @abstractmethod
     def initialize_random(self) -> None:
         """Populates genes randomly within valid representation constraints."""
